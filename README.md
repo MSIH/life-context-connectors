@@ -20,7 +20,7 @@ docs/           A copy of the connector contract (source of truth: msih/life-con
 1. New top-level folder, named after the connector's `source` value (e.g. `imessage/`).
 2. Own `package.json` (or equivalent for another language) — no shared dependencies assumed between connectors.
 3. Own `README.md` with setup steps and, for push-style connectors, the trigger registration snippet.
-4. Talk to LifeContext only via `POST {BRAIN_URL}/api/v1/ingest` (or `/ingest/batch`) per `docs/04-connector-contract.md`. Validate payloads against [`schemas/ingest.v1.json`](https://github.com/msih/life-context/blob/2.0/schemas/ingest.v1.json) in the source repo if you want CI-time checking without a live server.
+4. Talk to LifeContext only via `POST {LIFECONTEXT_URL}/api/v1/ingest` (or `/ingest/batch`) per `docs/04-connector-contract.md`. Validate payloads against [`schemas/ingest.v1.json`](https://github.com/msih/life-context/blob/2.0/schemas/ingest.v1.json) in the source repo if you want CI-time checking without a live server.
 
 ## Tracking
 

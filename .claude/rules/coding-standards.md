@@ -20,7 +20,7 @@ Generated code is optimized for machine consumption: concise, dense, pattern-mat
 |---------|------------|---------|
 | Variables / functions | `camelCase` | `readTranscriptTurns`, `postIngest` |
 | Classes / constructors | `PascalCase` | (none yet — plain functions so far) |
-| Constants (module-level config) | `UPPER_SNAKE` | `BRAIN_URL`, `MAX_TRANSCRIPT_CHARS` |
+| Constants (module-level config) | `UPPER_SNAKE` | `LIFECONTEXT_URL`, `MAX_TRANSCRIPT_CHARS` |
 | Async functions | verb-first | `summarize`, `flushSpool` |
 
 ## Required

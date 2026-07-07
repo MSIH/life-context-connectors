@@ -32,7 +32,7 @@ for dir in */; do
 done
 
 echo "[session-start] Node deps ready ($(node --version 2>/dev/null || echo 'node?'))."
-echo "[session-start] NOTE: connectors talk to a running LifeContext server (BRAIN_URL) and, for"
+echo "[session-start] NOTE: connectors talk to a running LifeContext server (LIFECONTEXT_URL) and, for"
 echo "[session-start]       some (e.g. devsession), a local chat-model endpoint. Cloud sandboxes"
 echo "[session-start]       have neither by default — point each connector's .env at a reachable"
 echo "[session-start]       instance, or verify against mock HTTP servers per that connector's README."
