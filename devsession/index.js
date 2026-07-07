@@ -15,8 +15,8 @@ import { fileURLToPath } from 'node:url';
 
 loadDotEnvIfPresent();
 
-const BRAIN_URL = process.env.BRAIN_URL || 'http://localhost:3000';
-const BRAIN_SECRET_KEY = process.env.BRAIN_SECRET_KEY;
+const LIFECONTEXT_URL = process.env.LIFECONTEXT_URL || 'http://localhost:3000';
+const LIFECONTEXT_API_KEY = process.env.LIFECONTEXT_API_KEY;
 const CHAT_BASE_URL = process.env.CHAT_BASE_URL || 'http://localhost:11434/v1';
 const CHAT_MODEL = process.env.CHAT_MODEL || 'qwen3:8b';
 const SPOOL_PATH = process.env.DEVSESSION_SPOOL_PATH
@@ -110,9 +110,9 @@ function fallbackSummary(turns) {
 }
 
 async function postIngest(payload) {
-  const res = await fetch(`${BRAIN_URL}/api/v1/ingest`, {
+  const res = await fetch(`${LIFECONTEXT_URL}/api/v1/ingest`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-api-key': BRAIN_SECRET_KEY },
+    headers: { 'content-type': 'application/json', 'x-api-key': LIFECONTEXT_API_KEY },
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error(`ingest returned ${res.status}`);
@@ -126,7 +126,7 @@ async function spool(payload) {
 
 // Flush any payloads a prior, server-unreachable run couldn't deliver, before processing the
 // current session — the connector contract's failure posture (doc 04 §7): lose at most the
-// uncommitted window, never buffer unbounded, never require the brain to be up to observe.
+// uncommitted window, never buffer unbounded, never require the server to be up to observe.
 async function flushSpool() {
   let lines;
   try {
@@ -147,8 +147,8 @@ async function flushSpool() {
 }
 
 async function main() {
-  if (!BRAIN_SECRET_KEY || BRAIN_SECRET_KEY === 'change-this-to-a-long-secure-token') {
-    console.error('devsession: BRAIN_SECRET_KEY not configured (see .env.example); skipping');
+  if (!LIFECONTEXT_API_KEY || LIFECONTEXT_API_KEY === 'change-this-to-a-long-secure-token') {
+    console.error('devsession: LIFECONTEXT_API_KEY not configured (see .env.example); skipping');
     return;
   }
 

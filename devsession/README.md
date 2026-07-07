@@ -12,7 +12,7 @@ A Claude Code `SessionEnd` hook that turns every coding session into a searchabl
 ## Setup
 
 1. `cp .env.example .env` and fill in:
-   - `BRAIN_URL` / `BRAIN_SECRET_KEY` — where LifeContext is running and its `x-api-key` (must match the core server's `.env`)
+   - `LIFECONTEXT_URL` / `LIFECONTEXT_API_KEY` — where LifeContext is running and its `x-api-key` (set the key to the same value as `BRAIN_SECRET_KEY` in the core server's own `.env`)
    - `CHAT_BASE_URL` / `CHAT_MODEL` — your local chat model endpoint (defaults assume Ollama with `qwen3:8b`; see `life-context`'s [`docs/local-llm-setup-guide.md`](https://github.com/msih/life-context/blob/2.0/docs/local-llm-setup-guide.md))
 2. No `npm install` needed — zero dependencies, Node 18+ built-ins only (`fetch`, `fs/promises`).
 3. Register the hook in your project's or user's `.claude/settings.json`:

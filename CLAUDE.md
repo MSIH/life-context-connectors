@@ -26,7 +26,7 @@ devsession/                — Claude Code SessionEnd hook -> dev_session artifa
 ```
 
 ## Run & Test
-Each connector documents its own setup in its folder's `README.md` (env vars, how to register/trigger it, how to verify). There is no repo-wide build or server — this repo produces client processes, not a service. To verify a connector end-to-end without a live LifeContext server, point its `BRAIN_URL`/chat-model env vars at throwaway local HTTP servers that mimic the two responses it depends on (ingest 201/200 JSON, chat-completions JSON) — see `devsession/index.js`'s own development history for the pattern.
+Each connector documents its own setup in its folder's `README.md` (env vars, how to register/trigger it, how to verify). There is no repo-wide build or server — this repo produces client processes, not a service. To verify a connector end-to-end without a live LifeContext server, point its `LIFECONTEXT_URL`/chat-model env vars at throwaway local HTTP servers that mimic the two responses it depends on (ingest 201/200 JSON, chat-completions JSON) — see `devsession/index.js`'s own development history for the pattern.
 
 </context>
 
@@ -59,7 +59,7 @@ Enforced by gate hooks in `.claude/hooks/` (mirrored from `msih/life-context`, w
 - Design ethos (data preservation, logging, docs-close-to-code, baseline method, AI-artifact capture): `.claude/rules/design-philosophy.md`.
 
 ## Env / Config keys
-There is no repo-wide `.env` — every connector folder has its own, documented in that folder's `README.md`. The two that recur across nearly every connector: `BRAIN_URL` (where LifeContext is running) and `BRAIN_SECRET_KEY` (its `x-api-key`, matching the core server's own `.env`).
+There is no repo-wide `.env` — every connector folder has its own, documented in that folder's `README.md`. The two that recur across nearly every connector: `LIFECONTEXT_URL` (where LifeContext is running) and `LIFECONTEXT_API_KEY` (its `x-api-key` — set to the same value as `BRAIN_SECRET_KEY` in the core server's own `.env`).
 
 ## Workflow tooling & local settings
 The mandatory-workflow tooling is committed in `.claude/` so it travels with the repo — cloud/remote agents get only the git checkout, never `~/.claude`. Mirrored from `msih/life-context` and adapted (no SQLite/embeddings concerns here; the "data model" persona became "connector conventions"):
