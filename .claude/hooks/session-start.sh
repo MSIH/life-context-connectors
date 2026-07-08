@@ -21,7 +21,7 @@ if [ -f package.json ]; then
 fi
 
 # Every connector folder is independent — install only where a package.json exists, and only
-# when it actually declares dependencies (most connectors, e.g. devsession, have none).
+# when it actually declares dependencies (most connectors, e.g. devsession-claude, have none).
 for dir in */; do
   name="${dir%/}"
   [ -f "$dir/package.json" ] || continue
@@ -33,6 +33,6 @@ done
 
 echo "[session-start] Node deps ready ($(node --version 2>/dev/null || echo 'node?'))."
 echo "[session-start] NOTE: connectors talk to a running LifeContext server (LIFECONTEXT_URL) and, for"
-echo "[session-start]       some (e.g. devsession), a local chat-model endpoint. Cloud sandboxes"
+echo "[session-start]       some (e.g. devsession-claude), a local chat-model endpoint. Cloud sandboxes"
 echo "[session-start]       have neither by default — point each connector's .env at a reachable"
 echo "[session-start]       instance, or verify against mock HTTP servers per that connector's README."

@@ -8,7 +8,7 @@ Author a GitHub issue for `MSIH/life-context-connectors`, get explicit approval 
 Before ANY branch-creating work — issue first, always. No exceptions (not for "trivial", doc-only, or config changes).
 
 ## Step 1 — Investigate
-Read the relevant code before drafting: the connector(s) involved (or the nearest existing one, e.g. `devsession/index.js`, if building a new one), `docs/04-connector-contract.md`, `.claude/rules/*`. For a bug, locate the root-cause file **and line** and confirm the reproduction — do not file on a symptom. Open at most a few files; don't read the world.
+Read the relevant code before drafting: the connector(s) involved (or the nearest existing one, e.g. `devsession-claude/index.js`, if building a new one), `docs/04-connector-contract.md`, `.claude/rules/*`. For a bug, locate the root-cause file **and line** and confirm the reproduction — do not file on a symptom. Open at most a few files; don't read the world.
 
 ## Tier selection (choose before drafting)
 | Tier | Use when | Sections |

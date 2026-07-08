@@ -94,7 +94,7 @@ test('claude-cli provider: summarizes via the claude CLI, ingests the summary, e
   assert.equal(result.status, 0, result.stderr);
   assert.equal(requests.length, 1);
   const payload = requests[0].body;
-  assert.equal(payload.source, 'devsession');
+  assert.equal(payload.source, 'devsession-claude');
   assert.equal(payload.source_id, 'test-session-1');
   assert.equal(payload.type, 'dev_session');
   assert.equal(payload.text_repr, 'STUB SUMMARY: session summarized by the test double.');

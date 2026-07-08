@@ -6,7 +6,7 @@ Two scripts that make a photo library time/place-queryable in [LifeContext](http
 
 The roadmap flags this as an open question ("worker lives with core or alongside — decide here," since doc 04 frames VLM captioning as a core-side "transducer," conceptually parallel to how core owns embeddings). **Decision: it lives here, in `photo-exif/`, as a second script alongside the scanner** — not in `life-context` core. Rationale:
 
-- Consistency: `devsession` and `imessage` are both pure isolated HTTP clients with zero direct database coupling; splitting `photo-exif`'s enrichment step into core would make it the only connector that isn't.
+- Consistency: `devsession-claude` and `imessage` are both pure isolated HTTP clients with zero direct database coupling; splitting `photo-exif`'s enrichment step into core would make it the only connector that isn't.
 - The worker never needs to query "which artifacts need captions" from the server — it re-walks the same `PHOTO_ROOT` it already knows and checks its own local state file (`PHOTO_EXIF_CAPTION_STATE_PATH`). No new server-side capability required.
 - It still upserts the *same artifact* (`source_id` = the relative file path, computed identically in both scripts via `lib/shared.js`), so the contract's upsert semantics do all the real work — the worker is just a slow, patient HTTP client like any other.
 

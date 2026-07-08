@@ -1,4 +1,6 @@
-# devsession
+# devsession-claude
+
+> Renamed from `devsession`. If you registered a `.claude/settings.json` hook pointing at the old `devsession/index.js` path, update it to `devsession-claude/index.js` (see Setup below). The ingest payload's `source` field also changed from `'devsession'` to `'devsession-claude'` — artifacts already ingested under the old value keep it; only new ingests use the new one, so a `search`/`GET /api/v1/ingest` query scoped to `source: 'devsession'` won't find sessions recorded after this change (and vice versa) unless you backfill. The name change reflects that this connector is specifically for Claude Code — see [#10](https://github.com/MSIH/life-context-connectors/issues/10) for planned sibling connectors covering other AI coding tools.
 
 A Claude Code `SessionEnd` (and, optionally, `PreCompact`) hook that turns every coding session into a searchable `dev_session` artifact in [LifeContext](https://github.com/msih/life-context). Implements [Milestone 1](https://github.com/msih/life-context/issues/28) of the LifeContext roadmap — the **push** reference connector.
 
@@ -6,7 +8,7 @@ A Claude Code `SessionEnd` (and, optionally, `PreCompact`) hook that turns every
 
 1. Claude Code invokes `index.js` on `SessionEnd` (and, if registered, `PreCompact`), passing hook JSON (`session_id`, `transcript_path`, `cwd`, …) on stdin.
 2. It reads the session transcript and asks a chat model for a short summary — what was done, key decisions and why, next steps. By default (`CHAT_PROVIDER=claude-cli`) this shells out to the `claude` binary already authenticated in the environment — no local LLM or separate API key required, and it works the same whether Claude Code is running on your laptop or in a Claude Code web/cloud container. `CHAT_PROVIDER=openai` switches to the original path: any local or hosted OpenAI-compatible `/chat/completions` endpoint (Ollama by default).
-3. It `POST`s the summary to LifeContext as `POST /api/v1/ingest`, `type: 'dev_session'`, `source: 'devsession'`, `source_id` = the Claude Code session UUID.
+3. It `POST`s the summary to LifeContext as `POST /api/v1/ingest`, `type: 'dev_session'`, `source: 'devsession-claude'`, `source_id` = the Claude Code session UUID.
 4. If LifeContext is unreachable, the payload is appended to a local spool file instead of being dropped; the next session's hook run flushes anything spooled before processing itself.
 
 ## Setup
@@ -25,7 +27,7 @@ A Claude Code `SessionEnd` (and, optionally, `PreCompact`) hook that turns every
         "hooks": [
           {
             "type": "command",
-            "command": "node /absolute/path/to/life-context-connectors/devsession/index.js",
+            "command": "node /absolute/path/to/life-context-connectors/devsession-claude/index.js",
             "timeout": 120
           }
         ]
@@ -36,7 +38,7 @@ A Claude Code `SessionEnd` (and, optionally, `PreCompact`) hook that turns every
         "hooks": [
           {
             "type": "command",
-            "command": "node /absolute/path/to/life-context-connectors/devsession/index.js",
+            "command": "node /absolute/path/to/life-context-connectors/devsession-claude/index.js",
             "timeout": 120
           }
         ]

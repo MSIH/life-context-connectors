@@ -9,11 +9,13 @@ The contract (`docs/04-connector-contract.md` §10, mirrored here) calls for eac
 ## Structure
 
 ```
-devsession/     Claude Code SessionEnd hook → dev_session artifacts (Milestone 1)
-docs/           A copy of the connector contract (source of truth: msih/life-context)
+devsession-claude/  Claude Code SessionEnd/PreCompact hook → dev_session artifacts (Milestone 1)
+imessage/            iMessage chat.db sync → message/photo artifacts (Milestone 3)
+photo-exif/          Photo library EXIF scan + VLM captioning → photo artifacts (Milestone 4)
+docs/                A copy of the connector contract (source of truth: msih/life-context)
 ```
 
-`imessage/` and `photo-exif/` land here the same way as Milestones 3–4 come up (see the [roadmap](https://github.com/msih/life-context/blob/2.0/docs/05-roadmap.md)).
+More connectors land here the same way as later milestones come up (see the [roadmap](https://github.com/msih/life-context/blob/2.0/docs/05-roadmap.md)).
 
 ## Adding a connector
 
@@ -24,7 +26,7 @@ docs/           A copy of the connector contract (source of truth: msih/life-con
 
 ## Tracking
 
-Milestones are tracked in the core repo: [msih/life-context issue #28](https://github.com/msih/life-context/issues/28) (Milestone 1 — devsession, in progress). File connector-specific issues here, referencing that epic with `msih/life-context#28`.
+Milestones are tracked in the core repo: [msih/life-context issue #28](https://github.com/msih/life-context/issues/28) (Milestone 1 — devsession-claude, in progress). File connector-specific issues here, referencing that epic with `msih/life-context#28`.
 
 ## License
 

@@ -31,7 +31,7 @@ const LIFECONTEXT_API_KEY = process.env.LIFECONTEXT_API_KEY;
 // rather than silently degrading into a network call against an unconfigured local endpoint.
 const CHAT_PROVIDER = process.env.CHAT_PROVIDER || 'claude-cli';
 if (CHAT_PROVIDER !== 'claude-cli' && CHAT_PROVIDER !== 'openai') {
-  console.error(`devsession: unknown CHAT_PROVIDER '${CHAT_PROVIDER}' (expected 'claude-cli' or 'openai'); using 'claude-cli'`);
+  console.error(`devsession-claude: unknown CHAT_PROVIDER '${CHAT_PROVIDER}' (expected 'claude-cli' or 'openai'); using 'claude-cli'`);
 }
 const CHAT_BASE_URL = process.env.CHAT_BASE_URL || 'http://localhost:11434/v1';
 const CHAT_MODEL = process.env.CHAT_MODEL || (CHAT_PROVIDER === 'openai' ? 'qwen3:8b' : 'haiku');
@@ -215,7 +215,7 @@ async function main() {
   if (process.env.DEVSESSION_DISABLE === '1') return;
 
   if (!LIFECONTEXT_API_KEY || LIFECONTEXT_API_KEY === 'change-this-to-a-long-secure-token') {
-    console.error('devsession: LIFECONTEXT_API_KEY not configured (see .env.example); skipping');
+    console.error('devsession-claude: LIFECONTEXT_API_KEY not configured (see .env.example); skipping');
     return;
   }
 
@@ -224,7 +224,7 @@ async function main() {
     session_id: sessionId, transcript_path: transcriptPath, cwd, hook_event_name: hookEvent,
   } = hookInput;
 
-  await flushSpool().catch((err) => console.error('devsession: spool flush failed', err));
+  await flushSpool().catch((err) => console.error('devsession-claude: spool flush failed', err));
 
   const turns = await readTranscriptTurns(transcriptPath);
   if (turns.filter((t) => t.role === 'user').length < MIN_USER_TURNS) return; // nothing to remember
@@ -233,12 +233,12 @@ async function main() {
   try {
     summary = await summarize(turns);
   } catch (err) {
-    console.error('devsession: summarization failed, using fallback summary', err);
+    console.error('devsession-claude: summarization failed, using fallback summary', err);
     summary = fallbackSummary(turns);
   }
 
   const payload = {
-    source: 'devsession',
+    source: 'devsession-claude',
     source_id: sessionId,
     type: 'dev_session',
     text_repr: summary,
@@ -252,11 +252,11 @@ async function main() {
   try {
     await postIngest(payload);
   } catch (err) {
-    console.error('devsession: ingest failed, spooling for next run', err);
+    console.error('devsession-claude: ingest failed, spooling for next run', err);
     await spool(payload);
   }
 }
 
 main()
-  .catch((err) => console.error('devsession: unexpected error', err))
+  .catch((err) => console.error('devsession-claude: unexpected error', err))
   .finally(() => process.exit(0)); // never hang or fail the user's terminal
