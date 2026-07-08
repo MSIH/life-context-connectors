@@ -22,10 +22,15 @@ const LIFECONTEXT_URL = process.env.LIFECONTEXT_URL || 'http://localhost:3000';
 const LIFECONTEXT_API_KEY = process.env.LIFECONTEXT_API_KEY;
 // 'claude-cli' (default) shells out to the Claude Code binary already authenticated in this
 // environment — no local LLM or API key to manage. 'openai' keeps the original OpenAI-compatible
-// HTTP path (Ollama/LM Studio/hosted) for anyone who prefers it.
+// HTTP path (Ollama/LM Studio/hosted) for anyone who prefers it. Only the literal string 'openai'
+// opts into that path — an unrecognized value (e.g. a typo) falls back to the zero-config default
+// rather than silently degrading into a network call against an unconfigured local endpoint.
 const CHAT_PROVIDER = process.env.CHAT_PROVIDER || 'claude-cli';
+if (CHAT_PROVIDER !== 'claude-cli' && CHAT_PROVIDER !== 'openai') {
+  console.error(`devsession: unknown CHAT_PROVIDER '${CHAT_PROVIDER}' (expected 'claude-cli' or 'openai'); using 'claude-cli'`);
+}
 const CHAT_BASE_URL = process.env.CHAT_BASE_URL || 'http://localhost:11434/v1';
-const CHAT_MODEL = process.env.CHAT_MODEL || (CHAT_PROVIDER === 'claude-cli' ? 'haiku' : 'qwen3:8b');
+const CHAT_MODEL = process.env.CHAT_MODEL || (CHAT_PROVIDER === 'openai' ? 'qwen3:8b' : 'haiku');
 const CHAT_API_KEY = process.env.CHAT_API_KEY; // openai provider only; omit for an unauthenticated local endpoint
 const SPOOL_PATH = process.env.DEVSESSION_SPOOL_PATH
   || path.join(os.homedir(), '.life-context', 'devsession-spool.jsonl');
@@ -94,7 +99,7 @@ function buildTranscriptText(turns) {
 }
 
 async function summarize(turns) {
-  return CHAT_PROVIDER === 'claude-cli' ? summarizeViaClaudeCli(turns) : summarizeViaOpenAi(turns);
+  return CHAT_PROVIDER === 'openai' ? summarizeViaOpenAi(turns) : summarizeViaClaudeCli(turns);
 }
 
 // Default provider: shells out to the Claude Code CLI already authenticated in this environment
