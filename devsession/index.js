@@ -11,6 +11,7 @@
 import { readFile, appendFile, writeFile, rm, mkdir } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
 import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -88,6 +89,10 @@ async function readTranscriptTurns(transcriptPath) {
   return turns;
 }
 
+function buildTranscriptText(turns) {
+  return turns.map((t) => `${t.role}: ${t.text}`).join('\n\n').slice(-MAX_TRANSCRIPT_CHARS);
+}
+
 async function summarize(turns) {
   return CHAT_PROVIDER === 'claude-cli' ? summarizeViaClaudeCli(turns) : summarizeViaOpenAi(turns);
 }
@@ -98,37 +103,36 @@ async function summarize(turns) {
 // the child so it can never re-trigger this SessionEnd hook; DEVSESSION_DISABLE is a second,
 // belt-and-suspenders guard checked at the top of main(). --no-session-persistence keeps the
 // summarizer's own session out of /resume and off disk. --tools "" means pure text in, text out.
-function summarizeViaClaudeCli(turns) {
-  const transcriptText = turns.map((t) => `${t.role}: ${t.text}`).join('\n\n').slice(-MAX_TRANSCRIPT_CHARS);
-  return new Promise((resolve, reject) => {
-    const child = execFile(
-      'claude',
-      ['-p', '--safe-mode', '--no-session-persistence', '--tools', '', '--model', CHAT_MODEL,
-        '--system-prompt', SUMMARY_SYSTEM_PROMPT],
-      { timeout: SUMMARIZE_TIMEOUT_MS, env: { ...process.env, DEVSESSION_DISABLE: '1' } },
-      (err, stdout, stderr) => {
-        if (err) {
-          reject(new Error(`claude -p failed: ${err.message}${stderr.trim() ? ` (${stderr.trim()})` : ''}`));
-          return;
-        }
-        const text = stdout.trim();
-        if (!text) {
-          reject(new Error('claude -p returned no output'));
-          return;
-        }
-        resolve(text);
-      },
-    );
-    child.stdin.write(transcriptText);
-    child.stdin.end();
-  });
+// util.promisify(execFile) exposes the pending ChildProcess as promise.child, which is what lets
+// us write the transcript to its stdin before awaiting the result.
+async function summarizeViaClaudeCli(turns) {
+  const execFileAsync = promisify(execFile);
+  const promise = execFileAsync(
+    'claude',
+    ['-p', '--safe-mode', '--no-session-persistence', '--tools', '', '--model', CHAT_MODEL,
+      '--system-prompt', SUMMARY_SYSTEM_PROMPT],
+    { timeout: SUMMARIZE_TIMEOUT_MS, env: { ...process.env, DEVSESSION_DISABLE: '1' } },
+  );
+  promise.child.stdin.write(buildTranscriptText(turns));
+  promise.child.stdin.end();
+
+  let stdout;
+  try {
+    ({ stdout } = await promise);
+  } catch (err) {
+    // err.message already includes stderr (Node appends it for exec/execFile failures).
+    throw new Error(`claude -p failed: ${err.message}`);
+  }
+  const text = stdout.trim();
+  if (!text) throw new Error('claude -p returned no output');
+  return text;
 }
 
 // Original provider: any OpenAI-compatible /chat/completions endpoint (Ollama, LM Studio, or a
 // hosted provider that accepts bearer auth). CHAT_API_KEY is optional — omit it for a local
 // unauthenticated endpoint like Ollama's default.
 async function summarizeViaOpenAi(turns) {
-  const transcriptText = turns.map((t) => `${t.role}: ${t.text}`).join('\n\n').slice(-MAX_TRANSCRIPT_CHARS);
+  const transcriptText = buildTranscriptText(turns);
   const headers = { 'content-type': 'application/json' };
   if (CHAT_API_KEY) headers.authorization = `Bearer ${CHAT_API_KEY}`;
   const res = await fetch(`${CHAT_BASE_URL}/chat/completions`, {
