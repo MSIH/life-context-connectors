@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { tmpdir, homedir } from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
 import Database from 'better-sqlite3';
@@ -148,8 +148,9 @@ test('backfill: syncs messages + photo, hints resolved, tapback skipped, cursor 
   assert.equal(msg3.entity_hints[0].role, 'recipient');
   const photo = artifacts.find((a) => a.source_id === 'chat.db:attachment:1');
   assert.equal(photo.type, 'photo');
-  assert.ok(photo.raw_path.endsWith('/Library/Messages/Attachments/ab/photo.jpg'));
-  assert.ok(!photo.raw_path.startsWith('~'), 'tilde expanded');
+  // Assert the tilde was actually expanded to $HOME, not just "doesn't start with ~" — that
+  // weaker check would still pass for a wrongly-rooted absolute path.
+  assert.equal(photo.raw_path, path.join(homedir(), 'Library/Messages/Attachments/ab/photo.jpg'));
 
   // msg 4: group-chat fallback hints both participants
   const msg4 = artifacts.find((a) => a.source_id === 'chat.db:msg:4');

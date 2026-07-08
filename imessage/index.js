@@ -164,9 +164,16 @@ function buildPagePayloads(rows, statements, chatCache) {
     const hints = resolveHints(row, statements, chatCache);
     if (text) payloads.push(buildMessagePayload(row, text, hints));
     if (row.hasAttachments) {
-      const photos = statements.attachmentsForMessage.all(row.rowid)
-        .filter((a) => (a.mimeType || '').startsWith('image/'));
-      for (const attachment of photos) payloads.push(buildPhotoPayload(row, attachment, hints));
+      const attachments = statements.attachmentsForMessage.all(row.rowid);
+      for (const attachment of attachments) {
+        if ((attachment.mimeType || '').startsWith('image/')) {
+          payloads.push(buildPhotoPayload(row, attachment, hints));
+        } else {
+          // Out of scope for this milestone (README "Known limitations") — logged, not silently
+          // dropped, so an operator can see what's being skipped and prioritize accordingly.
+          console.error(`imessage: skipping non-image attachment ${attachment.rowid} (${attachment.mimeType || 'unknown mime type'})`);
+        }
+      }
     }
   }
   return payloads;
@@ -232,10 +239,22 @@ async function main() {
   }
 
   console.error(`imessage: watching for new messages every ${POLL_INTERVAL_MS}ms`);
-  const interval = setInterval(() => {
-    backfill(statements, chatCache).catch((err) => console.error('imessage: poll failed', err));
-  }, POLL_INTERVAL_MS);
-  const shutdown = () => { clearInterval(interval); db.close(); process.exit(0); };
+  // Self-rescheduling setTimeout, not setInterval: a poll that takes longer than
+  // POLL_INTERVAL_MS (slow network, large batch) must not overlap with the next one — two
+  // concurrent backfill() calls would race reading/writing the same cursor file. The next
+  // poll is scheduled only after the current one settles.
+  let stopped = false;
+  let timer = null;
+  const scheduleNextPoll = () => {
+    if (stopped) return;
+    timer = setTimeout(() => {
+      backfill(statements, chatCache)
+        .catch((err) => console.error('imessage: poll failed', err))
+        .finally(scheduleNextPoll);
+    }, POLL_INTERVAL_MS);
+  };
+  scheduleNextPoll();
+  const shutdown = () => { stopped = true; clearTimeout(timer); db.close(); process.exit(0); };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 }
