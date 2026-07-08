@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Claude Code `SessionEnd` hook. Reads the hook JSON from stdin, reads the session transcript,
-// asks a local chat model for a structured summary, and POSTs it to LifeContext as a
-// `dev_session` artifact. See README.md for settings.json wiring.
+// asks a chat model (by default, the already-authenticated Claude Code CLI itself) for a
+// structured summary, and POSTs it to LifeContext as a `dev_session` artifact. See README.md
+// for settings.json wiring.
 //
 // SessionEnd hooks cannot block session exit and the harness does not guarantee it waits for
 // the process to finish (see docs/04-connector-contract.md §7 "Failure posture" for the
@@ -9,6 +10,7 @@
 // and it always exits 0 so a slow/broken hook can never hang or fail the user's terminal.
 import { readFile, appendFile, writeFile, rm, mkdir } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
+import { execFile } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,13 +19,19 @@ loadDotEnvIfPresent();
 
 const LIFECONTEXT_URL = process.env.LIFECONTEXT_URL || 'http://localhost:3000';
 const LIFECONTEXT_API_KEY = process.env.LIFECONTEXT_API_KEY;
+// 'claude-cli' (default) shells out to the Claude Code binary already authenticated in this
+// environment — no local LLM or API key to manage. 'openai' keeps the original OpenAI-compatible
+// HTTP path (Ollama/LM Studio/hosted) for anyone who prefers it.
+const CHAT_PROVIDER = process.env.CHAT_PROVIDER || 'claude-cli';
 const CHAT_BASE_URL = process.env.CHAT_BASE_URL || 'http://localhost:11434/v1';
-const CHAT_MODEL = process.env.CHAT_MODEL || 'qwen3:8b';
+const CHAT_MODEL = process.env.CHAT_MODEL || (CHAT_PROVIDER === 'claude-cli' ? 'haiku' : 'qwen3:8b');
+const CHAT_API_KEY = process.env.CHAT_API_KEY; // openai provider only; omit for an unauthenticated local endpoint
 const SPOOL_PATH = process.env.DEVSESSION_SPOOL_PATH
   || path.join(os.homedir(), '.life-context', 'devsession-spool.jsonl');
 
 const MAX_TRANSCRIPT_CHARS = 16000; // tail-truncate before handing to the chat model; recent turns matter most
 const MIN_USER_TURNS = 1; // skip near-empty sessions (nothing worth remembering)
+const SUMMARIZE_TIMEOUT_MS = 90_000; // stay inside the hook's typical 120s settings.json timeout
 
 const SUMMARY_SYSTEM_PROMPT = [
   'Summarize this coding session in under 200 words of plain prose (no headers/bullets).',
@@ -81,10 +89,51 @@ async function readTranscriptTurns(transcriptPath) {
 }
 
 async function summarize(turns) {
+  return CHAT_PROVIDER === 'claude-cli' ? summarizeViaClaudeCli(turns) : summarizeViaOpenAi(turns);
+}
+
+// Default provider: shells out to the Claude Code CLI already authenticated in this environment
+// (subscription OAuth or ANTHROPIC_API_KEY) — no local LLM, no separate key to manage, works the
+// same on a laptop or a Claude Code web container. --safe-mode disables hooks/CLAUDE.md/etc. in
+// the child so it can never re-trigger this SessionEnd hook; DEVSESSION_DISABLE is a second,
+// belt-and-suspenders guard checked at the top of main(). --no-session-persistence keeps the
+// summarizer's own session out of /resume and off disk. --tools "" means pure text in, text out.
+function summarizeViaClaudeCli(turns) {
   const transcriptText = turns.map((t) => `${t.role}: ${t.text}`).join('\n\n').slice(-MAX_TRANSCRIPT_CHARS);
+  return new Promise((resolve, reject) => {
+    const child = execFile(
+      'claude',
+      ['-p', '--safe-mode', '--no-session-persistence', '--tools', '', '--model', CHAT_MODEL,
+        '--system-prompt', SUMMARY_SYSTEM_PROMPT],
+      { timeout: SUMMARIZE_TIMEOUT_MS, env: { ...process.env, DEVSESSION_DISABLE: '1' } },
+      (err, stdout, stderr) => {
+        if (err) {
+          reject(new Error(`claude -p failed: ${err.message}${stderr.trim() ? ` (${stderr.trim()})` : ''}`));
+          return;
+        }
+        const text = stdout.trim();
+        if (!text) {
+          reject(new Error('claude -p returned no output'));
+          return;
+        }
+        resolve(text);
+      },
+    );
+    child.stdin.write(transcriptText);
+    child.stdin.end();
+  });
+}
+
+// Original provider: any OpenAI-compatible /chat/completions endpoint (Ollama, LM Studio, or a
+// hosted provider that accepts bearer auth). CHAT_API_KEY is optional — omit it for a local
+// unauthenticated endpoint like Ollama's default.
+async function summarizeViaOpenAi(turns) {
+  const transcriptText = turns.map((t) => `${t.role}: ${t.text}`).join('\n\n').slice(-MAX_TRANSCRIPT_CHARS);
+  const headers = { 'content-type': 'application/json' };
+  if (CHAT_API_KEY) headers.authorization = `Bearer ${CHAT_API_KEY}`;
   const res = await fetch(`${CHAT_BASE_URL}/chat/completions`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers,
     body: JSON.stringify({
       model: CHAT_MODEL,
       messages: [
@@ -100,12 +149,12 @@ async function summarize(turns) {
   return text;
 }
 
-// Used when the chat model is unreachable — still worth storing *something* rather than
+// Used when the summarizer is unreachable/fails — still worth storing *something* rather than
 // losing the session entirely (design-philosophy: never lose data over a soft dependency).
 function fallbackSummary(turns) {
   const firstUser = turns.find((t) => t.role === 'user');
   const preview = firstUser ? firstUser.text.slice(0, 300) : '(no user message found)';
-  return `Session ended (${turns.length} turns); local chat model was unavailable so no summary `
+  return `Session ended (${turns.length} turns); summarization was unavailable so no summary `
     + `was generated. First message: ${preview}`;
 }
 
@@ -147,6 +196,11 @@ async function flushSpool() {
 }
 
 async function main() {
+  // Recursion guard: the claude-cli provider sets this in its own child's env, and --safe-mode
+  // already disables hooks there — this is the belt-and-suspenders second layer in case a future
+  // change ever runs this script without --safe-mode.
+  if (process.env.DEVSESSION_DISABLE === '1') return;
+
   if (!LIFECONTEXT_API_KEY || LIFECONTEXT_API_KEY === 'change-this-to-a-long-secure-token') {
     console.error('devsession: LIFECONTEXT_API_KEY not configured (see .env.example); skipping');
     return;
