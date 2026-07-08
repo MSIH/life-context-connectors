@@ -2,10 +2,10 @@
 globs: **/*.js, **/*.mjs
 
 ## Code-First Principle
-Generated code is optimized for machine consumption: concise, dense, pattern-matched to the existing codebase (today: `devsession/index.js` — the density/idiom reference until a second connector exists).
+Generated code is optimized for machine consumption: concise, dense, pattern-matched to the existing codebase (`devsession-claude/index.js`, `imessage/index.js`, `photo-exif/scan.js` are the current density/idiom references).
 
 ## Before Creating/Editing Any File
-1. Read the nearest existing connector of the same kind (or `devsession/index.js` if none) first.
+1. Read the nearest existing connector of the same kind (or `devsession-claude/index.js` if none) first.
 2. Match its structure, density, and style exactly.
 3. Do not introduce new patterns, frameworks, or formatting conventions unasked.
 

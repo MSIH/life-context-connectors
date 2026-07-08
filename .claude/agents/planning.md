@@ -11,7 +11,7 @@ You produce a **GitHub issue** and a **numbered implementation plan** before any
 
 ## Step 1 — Scope the task
 1. Read `CLAUDE.md` and `.claude/rules/*.md` for conventions and absolute rules.
-2. Read the connector(s) involved (or the nearest existing one, e.g. `devsession/index.js`, if this is a new connector), plus `docs/04-connector-contract.md`. There is no repo-map — read the actual code.
+2. Read the connector(s) involved (or the nearest existing one, e.g. `devsession-claude/index.js`, if this is a new connector), plus `docs/04-connector-contract.md`. There is no repo-map — read the actual code.
 3. Identify files to **create** vs **modify**, and any integration points (the ingest payload shape, a trigger registration snippet, a cursor/spool file format).
 4. Watch the known hazards from `.claude/rules/connector-conventions.md` (deterministic `source_id`, never compute embeddings, spool-don't-retry-loop, exit 0 on failure for push-style connectors).
 

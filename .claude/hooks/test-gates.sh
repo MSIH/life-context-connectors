@@ -25,18 +25,18 @@ run_gate() { # env_remote project_dir file_path
 }
 
 # --- cloud-issue-gate ---
-out=$(run_gate true "$FAKE" "$FAKE/devsession/index.js"); check "cloud, repo .js, no marker -> deny" deny "$out" $?
+out=$(run_gate true "$FAKE" "$FAKE/devsession-claude/index.js"); check "cloud, repo .js, no marker -> deny" deny "$out" $?
 out=$(run_gate true "$FAKE" "$FAKE/README.md"); check "cloud, repo doc, no marker -> deny" deny "$out" $?
 out=$(run_gate true "$FAKE" "$FAKE/.claude/hooks/x.sh"); check "cloud, .claude tooling, no marker -> deny" deny "$out" $?
 out=$(run_gate true "$FAKE" "$FAKE/.claude/.cloud-issue-done"); check "cloud, marker file itself -> allow" allow "$out" $?
 out=$(run_gate true "$FAKE" "$FAKE/.claude/settings.local.json"); check "cloud, settings.local.json -> allow" allow "$out" $?
 out=$(run_gate true "$FAKE" "/tmp/elsewhere/scratch.md"); check "cloud, outside project dir -> allow" allow "$out" $?
-out=$(run_gate false "$FAKE" "$FAKE/devsession/index.js"); check "non-cloud -> allow" allow "$out" $?
+out=$(run_gate false "$FAKE" "$FAKE/devsession-claude/index.js"); check "non-cloud -> allow" allow "$out" $?
 
 echo junk > "$FAKE/.claude/.cloud-issue-done"
-out=$(run_gate true "$FAKE" "$FAKE/devsession/index.js"); check "cloud, junk marker -> deny" deny "$out" $?
+out=$(run_gate true "$FAKE" "$FAKE/devsession-claude/index.js"); check "cloud, junk marker -> deny" deny "$out" $?
 echo 13 > "$FAKE/.claude/.cloud-issue-done"
-out=$(run_gate true "$FAKE" "$FAKE/devsession/index.js"); check "cloud, valid marker -> allow" allow "$out" $?
+out=$(run_gate true "$FAKE" "$FAKE/devsession-claude/index.js"); check "cloud, valid marker -> allow" allow "$out" $?
 out=$(CLAUDE_CODE_REMOTE=true CLAUDE_PROJECT_DIR=$FAKE bash "$GATE" <<<'{"tool_name":"Edit","tool_input":{"file_path":"relative/path.js"}}')
 check "cloud, relative path, valid marker -> allow" allow "$out" $?
 rm -f "$FAKE/.claude/.cloud-issue-done"
@@ -46,9 +46,9 @@ out=$(CLAUDE_CODE_REMOTE=true CLAUDE_PROJECT_DIR=$FAKE bash "$GATE" <<<'{"tool_n
 check "cloud, no file_path in input -> allow (no-op)" allow "$out" $?
 
 # --- worktree-edit-gate cloud awareness ---
-out=$(CLAUDE_CODE_REMOTE=true bash "$WTG" <<<'{"tool_name":"Edit","tool_input":{"file_path":"/x/devsession/index.js"}}')
+out=$(CLAUDE_CODE_REMOTE=true bash "$WTG" <<<'{"tool_name":"Edit","tool_input":{"file_path":"/x/devsession-claude/index.js"}}')
 check "worktree-gate: cloud .js edit -> allow (stands down)" allow "$out" $?
-out=$(CLAUDE_CODE_REMOTE=false bash "$WTG" <<<'{"tool_name":"Edit","tool_input":{"file_path":"/x/devsession/index.js"}}')
+out=$(CLAUDE_CODE_REMOTE=false bash "$WTG" <<<'{"tool_name":"Edit","tool_input":{"file_path":"/x/devsession-claude/index.js"}}')
 check "worktree-gate: local .js outside worktree -> deny (regression)" deny "$out" $?
 
 # --- draft-issue-gate (run against FAKE dir: no draft-issue marker) ---

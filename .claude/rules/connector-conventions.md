@@ -16,7 +16,7 @@ A connector's only job is to turn some corner of a digital life into `POST /api/
 
 ## Failure posture (doc 04 §7)
 - A connector that dies must lose at most its uncommitted window — never buffer unbounded in memory, never require the server to be up just to *observe* source data that isn't ephemeral (a message database sitting on disk doesn't need the server to be running to be read later).
-- **Spool to disk, don't retry-loop in memory.** When the ingest call fails, append the payload (as JSON) to a local file and flush it on the connector's next run. See `devsession/index.js`'s `spool()`/`flushSpool()` for the reference implementation — including the caveat that a single shared spool file isn't safe under concurrent invocations of the same connector; per-payload files under a spool directory avoid that race if a connector might ever run concurrently with itself.
+- **Spool to disk, don't retry-loop in memory.** When the ingest call fails, append the payload (as JSON) to a local file and flush it on the connector's next run. See `devsession-claude/index.js`'s `spool()`/`flushSpool()` for the reference implementation — including the caveat that a single shared spool file isn't safe under concurrent invocations of the same connector; per-payload files under a spool directory avoid that race if a connector might ever run concurrently with itself.
 - **A push-style connector (a hook, a Shortcut) must never hang or crash the thing that invoked it.** Catch everything at the top level, log to stderr, and exit 0 regardless of internal outcome.
 
 ## Batch vs. single ingest

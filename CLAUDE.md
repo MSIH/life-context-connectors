@@ -20,13 +20,13 @@ The official connectors monorepo for [**LifeContext**](https://github.com/msih/l
 ```
 README.md                  — repo overview, monorepo rationale, how to add a connector
 docs/04-connector-contract.md — mirrored copy of the contract (source of truth: msih/life-context)
-devsession/                — Claude Code SessionEnd hook -> dev_session artifacts (Milestone 1)
+devsession-claude/         — Claude Code SessionEnd/PreCompact hook -> dev_session artifacts (Milestone 1)
 <connector>/                — one folder per additional connector, added the same way
 .claude/rules/              — coding standards, connector conventions, design philosophy
 ```
 
 ## Run & Test
-Each connector documents its own setup in its folder's `README.md` (env vars, how to register/trigger it, how to verify). There is no repo-wide build or server — this repo produces client processes, not a service. To verify a connector end-to-end without a live LifeContext server, point its `LIFECONTEXT_URL`/chat-model env vars at throwaway local HTTP servers that mimic the two responses it depends on (ingest 201/200 JSON, chat-completions JSON) — see `devsession/index.js`'s own development history for the pattern.
+Each connector documents its own setup in its folder's `README.md` (env vars, how to register/trigger it, how to verify). There is no repo-wide build or server — this repo produces client processes, not a service. To verify a connector end-to-end without a live LifeContext server, point its `LIFECONTEXT_URL`/chat-model env vars at throwaway local HTTP servers that mimic the two responses it depends on (ingest 201/200 JSON, chat-completions JSON) — see `devsession-claude/index.js`'s own development history for the pattern.
 
 </context>
 
@@ -36,9 +36,9 @@ Each connector documents its own setup in its folder's `README.md` (env vars, ho
 1. **All config via env — never hardcode** secrets, server URLs, or model names in a way that can't be overridden. Each connector ships a `.env.example` (placeholders) and gitignores its own `.env`.
 2. **Never call Ollama or compute embeddings/vectors.** That is core's private business (`docs/04-connector-contract.md` §3) — it's what lets the embedding model change without touching a single connector. Connectors only produce `text_repr` (natural language) and metadata.
 3. **`source_id` must be reproducible from the source data**, never a random UUID minted at runtime — random IDs defeat the ingest contract's upsert-by-`(source, source_id)` semantics (doc 04 §1.3, §3).
-4. **Never buffer unbounded in memory on a connector failure.** If the LifeContext server is unreachable, spool to disk (append-only, flushed on the next run) rather than retry-loop in memory or drop the data — see `devsession/index.js`'s `spool`/`flushSpool` for the reference pattern.
+4. **Never buffer unbounded in memory on a connector failure.** If the LifeContext server is unreachable, spool to disk (append-only, flushed on the next run) rather than retry-loop in memory or drop the data — see `devsession-claude/index.js`'s `spool`/`flushSpool` for the reference pattern.
 5. **A connector must never hang or crash the process that invoked it.** Push-style connectors in particular (hooks, Shortcuts) run inside something else's flow — always exit cleanly (0) even on internal failure; log to stderr, never throw uncaught.
-6. **Providers pluggable, config-driven** — a connector that itself talks to a local chat model (e.g. `devsession`'s summarizer) takes the endpoint/model from env, defaulting to local Ollama, never hardcoded.
+6. **Providers pluggable, config-driven** — a connector that itself talks to a local chat model (e.g. `devsession-claude`'s summarizer) takes the endpoint/model from env, defaulting to local Ollama, never hardcoded.
 
 ## Every Change (mandatory workflow — no exceptions)
 Enforced by gate hooks in `.claude/hooks/` (mirrored from `msih/life-context`, which documents the full rationale). This repo can be worked by multiple AI agents concurrently, so branches must be isolated in their own working dirs:
@@ -54,7 +54,7 @@ Enforced by gate hooks in `.claude/hooks/` (mirrored from `msih/life-context`, w
 - Commit messages: imperative, ≤2 sentences. Reference issues/PRs as `#<n> "<title>"`.
 
 ## Style & Data
-- Match the nearest existing connector's density and idiom (today: `devsession/index.js`). Details in `.claude/rules/coding-standards.md`.
+- Match the nearest existing connector's density and idiom (today: `devsession-claude/index.js`). Details in `.claude/rules/coding-standards.md`.
 - Wire-contract conventions (payload shape, `source`/`source_id` rules, spool/fallback pattern, entity hints): `.claude/rules/connector-conventions.md`.
 - Design ethos (data preservation, logging, docs-close-to-code, baseline method, AI-artifact capture): `.claude/rules/design-philosophy.md`.
 
