@@ -6,10 +6,11 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { loadDotEnvIfPresent, walkImageFiles, sourceIdFor, contentHashOfFile, chunk, ingestClient } from './lib/shared.js';
 import { describePhoto, buildTextRepr } from './lib/describe.js';
 
-loadDotEnvIfPresent();
+loadDotEnvIfPresent(path.dirname(fileURLToPath(import.meta.url)));
 
 const LIFECONTEXT_URL = process.env.LIFECONTEXT_URL || 'http://localhost:3000';
 const LIFECONTEXT_API_KEY = process.env.LIFECONTEXT_API_KEY;
@@ -90,19 +91,19 @@ async function main() {
   };
 
   for await (const { absPath, relPath } of walkImageFiles(PHOTO_ROOT)) {
-    const stat = statSync(absPath);
-    const statKey = `${stat.mtimeMs}:${stat.size}`;
-    if (manifest[relPath] === statKey) {
-      skippedUnchanged++;
-      continue;
-    }
+    // statSync AND buildPayload share one try/catch — a permission error or broken file entry
+    // can throw from either, and either way it must skip just this file, not abort the scan.
+    let statKey;
     let payload;
     try {
+      const stat = statSync(absPath);
+      statKey = `${stat.mtimeMs}:${stat.size}`;
+      if (manifest[relPath] === statKey) {
+        skippedUnchanged++;
+        continue;
+      }
       payload = await buildPayload(absPath, relPath);
     } catch (err) {
-      // A single unreadable/corrupt file (permission error, truncated stream, etc.) must not
-      // abort an entire library scan — log it and move on, same posture as any per-item
-      // failure elsewhere in this connector.
       console.error(`photo-exif: skipping unreadable file ${relPath}`, err);
       continue;
     }

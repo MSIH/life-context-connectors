@@ -4,9 +4,11 @@ import { createHash } from 'node:crypto';
 import { createReadStream, existsSync, readFileSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
-export function loadDotEnvIfPresent(dir = path.dirname(fileURLToPath(import.meta.url))) {
+// No default `dir` — this module lives in lib/, one level below scan.js/caption-worker.js,
+// so defaulting to *this* module's own directory would look for photo-exif/lib/.env instead
+// of photo-exif/.env. Callers must pass their own directory explicitly.
+export function loadDotEnvIfPresent(dir) {
   const envPath = path.join(dir, '.env');
   if (!existsSync(envPath)) return;
   for (const line of readFileSync(envPath, 'utf8').split('\n')) {
@@ -23,14 +25,19 @@ export const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.heic', '.hei
 // Node 20.1+; this connector has zero native dependencies, so it's worth the extra lines to
 // keep a genuinely-true `>=18` floor (see the engines.node bug Copilot caught in the imessage
 // connector's package.json — this avoids repeating it).
-export async function* walkImageFiles(rootDir) {
-  const entries = await readdir(rootDir, { withFileTypes: true });
+//
+// `root` stays fixed across the whole recursion (only `dir` advances) — relPath must always be
+// relative to the original scan root, never to the current subdirectory, or two files with the
+// same name in different subfolders (e.g. two years' "IMG_1234.jpg") collide onto the same
+// source_id and silently overwrite each other via upsert instead of being two artifacts.
+export async function* walkImageFiles(root, dir = root) {
+  const entries = await readdir(dir, { withFileTypes: true });
   for (const entry of entries) {
-    const absPath = path.join(rootDir, entry.name);
+    const absPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      yield* walkImageFiles(absPath);
+      yield* walkImageFiles(root, absPath);
     } else if (entry.isFile() && IMAGE_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
-      yield { absPath, relPath: path.relative(rootDir, absPath).split(path.sep).join('/') };
+      yield { absPath, relPath: path.relative(root, absPath).split(path.sep).join('/') };
     }
   }
 }

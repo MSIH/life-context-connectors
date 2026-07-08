@@ -12,10 +12,11 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { loadDotEnvIfPresent, walkImageFiles, sourceIdFor, ingestClient } from './lib/shared.js';
 import { describePhoto, buildTextRepr } from './lib/describe.js';
 
-loadDotEnvIfPresent();
+loadDotEnvIfPresent(path.dirname(fileURLToPath(import.meta.url)));
 
 const LIFECONTEXT_URL = process.env.LIFECONTEXT_URL || 'http://localhost:3000';
 const LIFECONTEXT_API_KEY = process.env.LIFECONTEXT_API_KEY;
@@ -24,7 +25,10 @@ const VLM_BASE_URL = process.env.VLM_BASE_URL || 'http://localhost:11434';
 const VLM_MODEL = process.env.VLM_MODEL || 'llava';
 const VLM_PROMPT = process.env.VLM_PROMPT
   || "Describe this photo in one concise sentence, focused on what's happening and who or what is visible.";
-const VLM_THROTTLE_MS = Number(process.env.VLM_THROTTLE_MS) || 2000;
+// `|| 2000` would also override an explicit 0 (0 is falsy) — Number.isFinite distinguishes
+// "not set" (NaN) from "set to zero" (a real, useful value for tests and manual runs).
+const rawThrottle = Number(process.env.VLM_THROTTLE_MS);
+const VLM_THROTTLE_MS = Number.isFinite(rawThrottle) ? rawThrottle : 2000;
 const STATE_PATH = process.env.PHOTO_EXIF_CAPTION_STATE_PATH
   || path.join(os.homedir(), '.life-context', 'photo-exif-captions.json');
 

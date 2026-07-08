@@ -3,12 +3,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import http from 'node:http';
 import piexif from 'piexifjs';
 import { reverseGeocode } from './lib/reverse-geocode.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url)); // import.meta.dirname needs Node 20.11+; this connector declares >=18
 
 // A minimal valid 1x1 JPEG (no EXIF) — piexifjs inserts EXIF into a real JPEG rather than
 // building one from scratch.
@@ -44,7 +47,7 @@ function startMockServer(handler) {
 
 function run(script, env) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [path.join(import.meta.dirname, script)], {
+    const child = spawn(process.execPath, [path.join(__dirname, script)], {
       env: { ...process.env, ...env },
     });
     let stdout = '';
@@ -121,6 +124,40 @@ test('scan.js: EXIF + GPS photo, GPS-only photo, no-metadata photo, unchanged-fi
   server2.close();
   assert.equal(rerun.status, 0, rerun.stderr);
   assert.equal(requests2.length, 0, 'unchanged files are skipped on re-scan');
+});
+
+test('scan.js: same filename in different subdirectories gets distinct source_ids', async () => {
+  // Regression test: walkImageFiles() used to recompute relPath relative to the CURRENT
+  // recursion directory rather than the original root, so "2019/trip/IMG_1234.jpg" and
+  // "2020/trip/IMG_1234.jpg" both collapsed to source_id "IMG_1234.jpg" and silently
+  // overwrote each other via upsert instead of being two artifacts.
+  const tmp = mkdtempSync(path.join(tmpdir(), 'photo-exif-nested-test-'));
+  mkdirSync(path.join(tmp, '2019', 'trip'), { recursive: true });
+  mkdirSync(path.join(tmp, '2020', 'trip'), { recursive: true });
+  writeFileSync(path.join(tmp, '2019', 'trip', 'IMG_1234.jpg'), jpegWithExif({ dateTimeOriginal: '2019:03:04 14:30:00' }));
+  writeFileSync(path.join(tmp, '2020', 'trip', 'IMG_1234.jpg'), jpegWithExif({ dateTimeOriginal: '2020:03:04 14:30:00' }));
+
+  const { server, port, requests } = await startMockServer((req, body, res) => {
+    res.end(JSON.stringify({
+      summary: {},
+      results: body.artifacts.map((_, i) => ({ id: i + 1, created: true, resolved_entities: 0, unresolved_aliases: 0 })),
+    }));
+  });
+
+  const result = await run('scan.js', {
+    LIFECONTEXT_URL: `http://127.0.0.1:${port}`,
+    LIFECONTEXT_API_KEY: 'test-key',
+    PHOTO_ROOT: tmp,
+    PHOTO_EXIF_MANIFEST_PATH: path.join(tmp, 'manifest.json'),
+  });
+  server.closeAllConnections();
+  server.close();
+  assert.equal(result.status, 0, result.stderr);
+
+  const artifacts = requests[0].body.artifacts;
+  assert.equal(artifacts.length, 2, 'two distinct photos, not one collapsed into the other');
+  const ids = artifacts.map((a) => a.source_id).sort();
+  assert.deepEqual(ids, ['2019/trip/IMG_1234.jpg', '2020/trip/IMG_1234.jpg']);
 });
 
 test('caption-worker.js: enriches text_repr in place, preserves EXIF fields via upsert semantics, kill-safe state', async () => {
