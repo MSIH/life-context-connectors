@@ -1,13 +1,17 @@
 #!/usr/bin/env node
-// Claude Code `SessionEnd` hook. Reads the hook JSON from stdin, reads the session transcript,
-// asks a chat model (by default, the already-authenticated Claude Code CLI itself) for a
-// structured summary, and POSTs it to LifeContext as a `dev_session` artifact. See README.md
-// for settings.json wiring.
+// Claude Code `SessionEnd` and `PreCompact` hook. Reads the hook JSON from stdin, reads the
+// session transcript, asks a chat model (by default, the already-authenticated Claude Code CLI
+// itself) for a structured summary, and POSTs it to LifeContext as a `dev_session` artifact.
+// Registering under both events means a long-running session that compacts gets captured before
+// SessionEnd ever fires; ingest is upsert-by-(source, source_id) with source_id = the session
+// UUID, so a later SessionEnd send refines the same artifact rather than duplicating it. See
+// README.md for settings.json wiring.
 //
-// SessionEnd hooks cannot block session exit and the harness does not guarantee it waits for
-// the process to finish (see docs/04-connector-contract.md §7 "Failure posture" for the
-// contract-level rule this follows). This script is best-effort: it never throws past main(),
-// and it always exits 0 so a slow/broken hook can never hang or fail the user's terminal.
+// SessionEnd/PreCompact hooks cannot block session exit/compaction and the harness does not
+// guarantee it waits for the process to finish (see docs/04-connector-contract.md §7 "Failure
+// posture" for the contract-level rule this follows). This script is best-effort: it never
+// throws past main(), and it always exits 0 so a slow/broken hook can never hang or fail the
+// user's terminal or block compaction.
 import { readFile, appendFile, writeFile, rm, mkdir } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
 import { execFile } from 'node:child_process';
@@ -216,7 +220,9 @@ async function main() {
   }
 
   const hookInput = JSON.parse(await readStdin());
-  const { session_id: sessionId, transcript_path: transcriptPath, cwd } = hookInput;
+  const {
+    session_id: sessionId, transcript_path: transcriptPath, cwd, hook_event_name: hookEvent,
+  } = hookInput;
 
   await flushSpool().catch((err) => console.error('devsession: spool flush failed', err));
 
@@ -237,7 +243,10 @@ async function main() {
     type: 'dev_session',
     text_repr: summary,
     occurred_at: new Date().toISOString(),
-    extra: { project: path.basename(cwd ?? ''), cwd },
+    // hookEvent records which hook fired ('SessionEnd' or 'PreCompact') — the same session_id
+    // may be ingested more than once (a PreCompact send, later refined by SessionEnd), and this
+    // makes that provenance visible without needing a first-class ingest field for it.
+    extra: { project: path.basename(cwd ?? ''), cwd, hook_event: hookEvent },
   };
 
   try {

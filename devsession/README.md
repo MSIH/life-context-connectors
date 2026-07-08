@@ -1,10 +1,10 @@
 # devsession
 
-A Claude Code `SessionEnd` hook that turns every coding session into a searchable `dev_session` artifact in [LifeContext](https://github.com/msih/life-context). Implements [Milestone 1](https://github.com/msih/life-context/issues/28) of the LifeContext roadmap — the **push** reference connector.
+A Claude Code `SessionEnd` (and, optionally, `PreCompact`) hook that turns every coding session into a searchable `dev_session` artifact in [LifeContext](https://github.com/msih/life-context). Implements [Milestone 1](https://github.com/msih/life-context/issues/28) of the LifeContext roadmap — the **push** reference connector.
 
 ## What it does
 
-1. Claude Code invokes `index.js` on `SessionEnd`, passing hook JSON (`session_id`, `transcript_path`, `cwd`, …) on stdin.
+1. Claude Code invokes `index.js` on `SessionEnd` (and, if registered, `PreCompact`), passing hook JSON (`session_id`, `transcript_path`, `cwd`, …) on stdin.
 2. It reads the session transcript and asks a chat model for a short summary — what was done, key decisions and why, next steps. By default (`CHAT_PROVIDER=claude-cli`) this shells out to the `claude` binary already authenticated in the environment — no local LLM or separate API key required, and it works the same whether Claude Code is running on your laptop or in a Claude Code web/cloud container. `CHAT_PROVIDER=openai` switches to the original path: any local or hosted OpenAI-compatible `/chat/completions` endpoint (Ollama by default).
 3. It `POST`s the summary to LifeContext as `POST /api/v1/ingest`, `type: 'dev_session'`, `source: 'devsession'`, `source_id` = the Claude Code session UUID.
 4. If LifeContext is unreachable, the payload is appended to a local spool file instead of being dropped; the next session's hook run flushes anything spooled before processing itself.
@@ -15,7 +15,7 @@ A Claude Code `SessionEnd` hook that turns every coding session into a searchabl
    - `LIFECONTEXT_URL` / `LIFECONTEXT_API_KEY` — where LifeContext is running and its `x-api-key` (set the key to the same value as `BRAIN_SECRET_KEY` in the core server's own `.env`)
    - The default summarizer provider (`claude-cli`) needs nothing else configured. If you'd rather use a local/hosted OpenAI-compatible endpoint, set `CHAT_PROVIDER=openai` and fill in `CHAT_BASE_URL` / `CHAT_MODEL` (and `CHAT_API_KEY` if the endpoint requires bearer auth) — see `.env.example`. (`life-context`'s [`docs/local-llm-setup-guide.md`](https://github.com/msih/life-context/blob/2.0/docs/local-llm-setup-guide.md) covers running Ollama locally.)
 2. No `npm install` needed — zero dependencies, Node 18+ built-ins only (`fetch`, `fs/promises`, `child_process`).
-3. Register the hook in your project's or user's `.claude/settings.json`:
+3. Register the hook in your project's or user's `.claude/settings.json`. `SessionEnd` alone is enough to get started; also registering `PreCompact` (recommended — see below) captures long-running sessions before they compact instead of only at the very end:
 
 ```json
 {
@@ -30,14 +30,29 @@ A Claude Code `SessionEnd` hook that turns every coding session into a searchabl
           }
         ]
       }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /absolute/path/to/life-context-connectors/devsession/index.js",
+            "timeout": 120
+          }
+        ]
+      }
     ]
   }
 }
 ```
 
-No `matcher` — this fires for every `SessionEnd` reason (`clear`, `logout`, `prompt_input_exit`, …). Give it a generous `timeout`; the summarizer call can take a while (the `claude-cli` provider caps itself at `SUMMARIZE_TIMEOUT_MS`, ~90s, so a 120s hook timeout leaves headroom) and there's nothing to gain by cutting it off early (see Known Limitations below).
+No `matcher` on either — `SessionEnd` fires for every reason (`clear`, `logout`, `prompt_input_exit`, …) and `PreCompact` fires for both `manual` (`/compact`) and `auto` (context-limit) triggers. Give both a generous `timeout`; the summarizer call can take a while (the `claude-cli` provider caps itself at `SUMMARIZE_TIMEOUT_MS`, ~90s, so a 120s hook timeout leaves headroom) and there's nothing to gain by cutting it off early (see Known Limitations below).
 
 4. End a real coding session, then the next morning try `search("where did I leave off")` over LifeContext's MCP or `POST /api/search` — it should return the session artifact with the right project context. That's the roadmap's exit test for this connector.
+
+### Why also register `PreCompact`
+
+A session that runs for hours or days may not hit `SessionEnd` for a long time — or the hook process may get killed before it finishes when the session does end (see Known Limitations). `PreCompact` fires earlier, whenever the conversation is about to be compacted (manually via `/compact` or automatically at the context limit), while the full pre-compaction transcript is still on disk at `transcript_path`. Registering the same script under both events is safe to do unconditionally: ingest is upsert-by-`(source, source_id)` and `source_id` is the session UUID (unchanged across compactions), so a `PreCompact` send and a later `SessionEnd` send for the same session refine the same `dev_session` artifact rather than creating duplicates. The payload's `extra.hook_event` records which event produced each ingest (`'PreCompact'` or `'SessionEnd'`) if you need to tell them apart.
 
 ### Recursion guard (`claude-cli` provider)
 
@@ -71,8 +86,9 @@ There's no shared smoke test across connectors, so verification here is a small 
 - **Stub `claude` script on `PATH`** — a shell script named `claude` that asserts the exact args `summarizeViaClaudeCli()` must pass (`-p --safe-mode --no-session-persistence --tools "" --model <model> --system-prompt <prompt>`), drains stdin (the transcript), and prints a canned summary to stdout. Set `PATH="<dir-with-stub>:$PATH"` before running the hook so `execFile('claude', ...)` resolves to the stub instead of the real CLI. An env var like `STUB_CLAUDE_EXIT_CODE=1` on the stub lets you simulate a failing summarizer and confirm the fallback-summary path still ingests and still exits 0.
 - **Mock chat-completions server** — same idea for the `openai` provider: a `node:http` server on `/v1/chat/completions` that echoes whether it received an `Authorization` header, to confirm `CHAT_API_KEY` is (and isn't, when unset) sent.
 - **One real run** — with the actual `claude` binary and a real LifeContext instance (or the mock ingest server), to confirm the documented default path works end-to-end: `echo '<transcript>' | claude -p --safe-mode --no-session-persistence --tools "" --model haiku --system-prompt "<prompt>"` should print a plain-text summary.
+- **Dual-registration / dedup check** — since the script itself doesn't branch on which event fired, feed it a `PreCompact`-shaped payload (`hook_event_name: "PreCompact"`, `trigger: "manual"|"auto"`, `custom_instructions: null` alongside the usual `session_id`/`transcript_path`/`cwd`) and confirm the ingested `extra.hook_event` reads `"PreCompact"`; then feed the same `session_id` through a `SessionEnd`-shaped payload and confirm the mock ingest server sees the same `source_id` again (LifeContext's real upsert dedup isn't exercised by a mock server that just logs bodies — the point of this check is only that both events produce a request keyed on the same `source_id`, which is what makes the upsert in a real server a refine-not-duplicate).
 
-Wire a fake `SessionEnd` hook payload on stdin — `{"session_id":"...","transcript_path":"<path-to-a-fixture-transcript.jsonl>","cwd":"..."}` — pointing `transcript_path` at a small fixture JSONL matching the shape in `readTranscriptTurns()` (`{"message":{"role":"user","content":[{"type":"text","text":"..."}]}}` per line).
+Wire a fake hook payload on stdin — `{"session_id":"...","transcript_path":"<path-to-a-fixture-transcript.jsonl>","cwd":"..."}` (add `hook_event_name`/`trigger`/`custom_instructions` for a `PreCompact`-shaped payload) — pointing `transcript_path` at a small fixture JSONL matching the shape in `readTranscriptTurns()` (`{"message":{"role":"user","content":[{"type":"text","text":"..."}]}}` per line).
 
 ## Files
 
