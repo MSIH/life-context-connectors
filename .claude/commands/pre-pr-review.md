@@ -2,6 +2,8 @@
 
 Multi-persona review of the current branch before the PR opens — catch issues now so the PR opens clean. A `PreToolUse` hook (`.claude/hooks/pre-pr-review-gate.sh`) blocks `gh pr create` until this skill writes the current HEAD SHA to `.claude/.pre-pr-review-done` on an APPROVE / APPROVE-WITH-NITS verdict. For doc-only PRs use `/pre-doc-review` instead.
 
+**Run this proactively, without being asked**, the moment implementation for a change is complete and its own verification passes — it's step 3 of this repo's mandatory workflow (`CLAUDE.md` → "Every Change"), not an optional extra to run on request. Running it does not by itself open a PR — PR creation still needs an explicit ask from the user.
+
 ## Inputs
 1. `git status --short`; `git rev-parse --abbrev-ref HEAD`
 2. `git log --oneline main..HEAD`; `git diff main...HEAD --stat`

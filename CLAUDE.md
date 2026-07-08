@@ -44,7 +44,7 @@ Each connector documents its own setup in its folder's `README.md` (env vars, ho
 Enforced by gate hooks in `.claude/hooks/` (mirrored from `msih/life-context`, which documents the full rationale). This repo can be worked by multiple AI agents concurrently, so branches must be isolated in their own working dirs:
 1. **`/draft-issue`** — file a GitHub issue and get explicit approval on the Implementation Plan first. (Gate denies `gh issue create` / `mcp__github__issue_write` without a fresh marker.)
 2. **worktree** — create the branch with `git worktree add`, NEVER a plain `git checkout -b` / `git switch -c`.
-3. **`/pre-pr-review`** — run the multi-persona review (or **`/pre-doc-review`** for doc-only PRs), then open the PR (body starts with `Closes #<n>`). (Gate denies `gh pr create` without an APPROVE marker.)
+3. **`/pre-pr-review`** — run this automatically/autonomously the moment implementation and its own verification are done, without waiting to be asked (or **`/pre-doc-review`** for doc-only changes). This clears the gate; it does **not** by itself open a PR — only do that once the user has actually asked for one. (Gate denies `gh pr create` without an APPROVE marker.)
 
 `/planning` (Opus) can perform steps 1–2 (issue + plan + worktree) in one shot. The `worktree-edit-gate` hook **denies editing `.js`/`.mjs`/`.cjs` source outside a `.worktrees/` dir** — step 2 is not optional.
 
